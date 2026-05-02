@@ -2,6 +2,7 @@ import { useSignIn } from "@clerk/expo";
 import { Link, useRouter, type Href } from "expo-router";
 import { styled } from "nativewind";
 import { useState } from "react";
+import { usePostHog } from "posthog-react-native";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +17,7 @@ const SafeAreaView = styled(RNSafeAreaView);
 const SigIn = () => {
   const { signIn, errors, fetchStatus } = useSignIn();
   const router = useRouter();
+  const posthog = usePostHog();
 
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
@@ -41,11 +43,17 @@ const SigIn = () => {
     });
 
     if (error) {
+      posthog.capture("sign_in_failed", {
+        error_code: error.code,
+        error_message: error.message,
+      });
       console.error(JSON.stringify(error, null, 2));
       return;
     }
 
     if (signIn.status === "complete") {
+      posthog.identify(emailAddress, { $set: { email: emailAddress } });
+      posthog.capture("user_signed_in", { method: "password" });
       await signIn.finalize({
         navigate: ({ session, decorateUrl }) => {
           if (session?.currentTask) {
@@ -87,6 +95,8 @@ const SigIn = () => {
     await signIn.mfa.verifyEmailCode({ code });
 
     if (signIn.status === "complete") {
+      posthog.identify(emailAddress, { $set: { email: emailAddress } });
+      posthog.capture("user_signed_in", { method: "password_mfa" });
       await signIn.finalize({
         navigate: ({ session, decorateUrl }) => {
           if (session?.currentTask) {

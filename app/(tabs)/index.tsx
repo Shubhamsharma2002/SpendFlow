@@ -12,8 +12,9 @@ import { formatCurrency } from "@/lib/utils";
 import { useUser } from "@clerk/expo";
 import dayjs from "dayjs";
 import { styled } from "nativewind";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FlatList, Image, Text, View } from "react-native";
+import { usePostHog } from "posthog-react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 import "../../global.css";
 const SafeAreaView = styled(RNSafeAreaView);
@@ -22,6 +23,12 @@ export default function App() {
     string | null
   >(null);
   const { user } = useUser();
+  const posthog = usePostHog();
+
+  useEffect(() => {
+    posthog.capture("home_viewed");
+  }, [posthog]);
+
   const displayName =
     user?.firstName ||
     user?.fullName ||
@@ -84,11 +91,19 @@ export default function App() {
           <SubscriptionCard
             {...item}
             expanded={expandedSubscriptionId === item.id}
-            onPress={() =>
-              setExpandedSubscriptionId((currentId) =>
-                currentId === item.id ? null : item.id,
-              )
-            }
+            onPress={() => {
+              setExpandedSubscriptionId((currentId) => {
+                const isExpanding = currentId !== item.id;
+                if (isExpanding) {
+                  posthog.capture("subscription_card_expanded", {
+                    subscription_id: item.id,
+                    subscription_name: item.name,
+                    billing: item.billing,
+                  });
+                }
+                return currentId === item.id ? null : item.id;
+              });
+            }}
           />
         )}
         extraData={expandedSubscriptionId}
