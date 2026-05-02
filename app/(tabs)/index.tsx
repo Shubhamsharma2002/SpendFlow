@@ -1,45 +1,105 @@
+import CreateSubscriptionModal from "@/components/CreateSubscriptionModal";
 import ListHeading from "@/components/ListHeading";
 import SubscriptionCard from "@/components/SubscriptionCard";
 import UpcomingSubscriptionCard from "@/components/UpcomingSubscriptionCard";
-import {
-  HOME_BALANCE,
-  HOME_SUBSCRIPTIONS,
-  UPCOMING_SUBSCRIPTIONS,
-} from "@/constants/data";
+
+import { HOME_BALANCE, HOME_SUBSCRIPTIONS } from "@/constants/data";
 import { icons } from "@/constants/icons";
 import images from "@/constants/images";
+
+import { useSubscriptionStore } from "@/lib/subscriptionStore";
 import { formatCurrency } from "@/lib/utils";
+
 import { useUser } from "@clerk/expo";
 import dayjs from "dayjs";
 import { styled } from "nativewind";
-import { useEffect, useState } from "react";
-import { FlatList, Image, Text, View } from "react-native";
-import { usePostHog } from "posthog-react-native";
+import { useEffect, useMemo, useState } from "react";
+import { FlatList, Image, Pressable, Text, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
-import "../../global.css";
+
+import { usePostHog } from "posthog-react-native";
+
 const SafeAreaView = styled(RNSafeAreaView);
+
 export default function App() {
-  const [expandedSubscriptionId, setExpandedSubscriptionId] = useState<
-    string | null
-  >(null);
   const { user } = useUser();
   const posthog = usePostHog();
 
+  const [expandedSubscriptionId, setExpandedSubscriptionId] = useState<
+    string | null
+  >(null);
+
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
+  const { subscriptions, addSubscription } = useSubscriptionStore();
+
+  // 🔥 fallback if store empty
+  const allSubscriptions =
+    subscriptions.length > 0 ? subscriptions : HOME_SUBSCRIPTIONS;
+
   useEffect(() => {
     posthog.capture("home_viewed");
-  }, [posthog]);
+  }, []);
+
+  // ✅ UPCOMING LOGIC (FINAL FIX)
+  const upcomingSubscriptions = useMemo(() => {
+    const now = dayjs();
+
+    return allSubscriptions
+      .map((sub) => {
+        const daysLeft = dayjs(sub.renewalDate).diff(now, "day");
+
+        return {
+          ...sub,
+          daysLeft,
+        };
+      })
+      .filter(
+        (sub) =>
+          sub.status === "active" && sub.daysLeft >= 0 && sub.daysLeft <= 7,
+      )
+      .sort((a, b) => a.daysLeft - b.daysLeft);
+  }, [allSubscriptions]);
+
+  const handleSubscriptionPress = (item: Subscription) => {
+    const isExpanding = expandedSubscriptionId !== item.id;
+
+    setExpandedSubscriptionId((currentId) =>
+      currentId === item.id ? null : item.id,
+    );
+
+    posthog.capture(
+      isExpanding ? "subscription_expanded" : "subscription_collapsed",
+      {
+        subscription_name: item.name,
+        subscription_id: item.id,
+      },
+    );
+  };
+
+  const handleCreateSubscription = (newSubscription: Subscription) => {
+    addSubscription(newSubscription);
+
+    posthog.capture("subscription_created", {
+      subscription_name: newSubscription.name,
+      subscription_price: newSubscription.price ?? 0,
+      subscription_frequency: newSubscription.billing ?? "unknown",
+      subscription_category: newSubscription.category ?? "unknown",
+    });
+  };
 
   const displayName =
     user?.firstName ||
     user?.fullName ||
     user?.emailAddresses[0]?.emailAddress ||
     "User";
+
   return (
-    <SafeAreaView className="flex-1 p-5 bg-background">
+    <SafeAreaView className="flex-1 bg-background p-5">
       <FlatList
         ListHeaderComponent={() => (
           <>
-            {/* section 1 */}
+            {/* HEADER */}
             <View className="home-header">
               <View className="home-user">
                 <Image
@@ -50,11 +110,16 @@ export default function App() {
                 />
                 <Text className="home-user-name">{displayName}</Text>
               </View>
-              <Image source={icons.add} className="home-add-icon" />
+
+              <Pressable onPress={() => setIsModalVisible(true)}>
+                <Image source={icons.add} className="home-add-icon" />
+              </Pressable>
             </View>
-            {/* section 2 */}
+
+            {/* BALANCE */}
             <View className="home-balance-card">
               <Text className="home-balance-label">Balance</Text>
+
               <View className="home-balance-row">
                 <Text className="home-balance-amount">
                   {formatCurrency(HOME_BALANCE.amount)}
@@ -64,55 +129,50 @@ export default function App() {
                 </Text>
               </View>
             </View>
-            {/* SECTION 3 */}
+
+            {/* UPCOMING */}
             <View className="mb-5">
               <ListHeading title="Upcoming" />
+
               <FlatList
-                data={UPCOMING_SUBSCRIPTIONS}
+                data={upcomingSubscriptions}
                 renderItem={({ item }) => (
-                  <UpcomingSubscriptionCard {...item} />
+                  <UpcomingSubscriptionCard
+                    {...item}
+                    daysLeft={item.daysLeft} // ✅ FIX
+                  />
                 )}
                 keyExtractor={(item) => item.id}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 ListEmptyComponent={
-                  <Text className="home-empty-state">
-                    No Upcoming reneal yets
-                  </Text>
+                  <Text className="home-empty-state">No upcoming renewals</Text>
                 }
               />
             </View>
+
             <ListHeading title="All Subscriptions" />
           </>
         )}
-        data={HOME_SUBSCRIPTIONS}
+        data={allSubscriptions}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <SubscriptionCard
             {...item}
             expanded={expandedSubscriptionId === item.id}
-            onPress={() => {
-              setExpandedSubscriptionId((currentId) => {
-                const isExpanding = currentId !== item.id;
-                if (isExpanding) {
-                  posthog.capture("subscription_card_expanded", {
-                    subscription_id: item.id,
-                    subscription_name: item.name,
-                    billing: item.billing,
-                  });
-                }
-                return currentId === item.id ? null : item.id;
-              });
-            }}
+            onPress={() => handleSubscriptionPress(item)}
           />
         )}
         extraData={expandedSubscriptionId}
         ItemSeparatorComponent={() => <View className="h-4" />}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <Text className="home-empty-state">No Subscription yet</Text>
-        }
         contentContainerClassName="pb-30"
+      />
+
+      <CreateSubscriptionModal
+        visible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
+        onSubmit={handleCreateSubscription}
       />
     </SafeAreaView>
   );

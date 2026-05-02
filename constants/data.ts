@@ -1,3 +1,4 @@
+import dayjs from "dayjs";
 import { icons } from "./icons";
 export const tabs: AppTab[] = [
   { name: "index", title: "Home", icon: icons.home },
@@ -42,6 +43,51 @@ export const UPCOMING_SUBSCRIPTIONS: UpcomingSubscription[] = [
 ];
 
 export const HOME_SUBSCRIPTIONS: Subscription[] = [
+  {
+    id: "spotify",
+    icon: icons.spotify,
+    name: "Spotify",
+    plan: "Premium",
+    category: "Entertainment",
+    paymentMethod: "Visa 1234",
+    status: "active",
+    startDate: dayjs().subtract(2, "month").toISOString(),
+    price: 5.99,
+    currency: "USD",
+    billing: "Monthly",
+    renewalDate: dayjs().add(2, "day").toISOString(), // ✅ upcoming
+    color: "#1DB954",
+  },
+  {
+    id: "notion",
+    icon: icons.notion,
+    name: "Notion",
+    plan: "Pro",
+    category: "Productivity",
+    paymentMethod: "Mastercard 5678",
+    status: "active",
+    startDate: dayjs().subtract(3, "month").toISOString(),
+    price: 12,
+    currency: "USD",
+    billing: "Monthly",
+    renewalDate: dayjs().add(5, "day").toISOString(), // ✅ upcoming
+    color: "#000000",
+  },
+  {
+    id: "figma",
+    icon: icons.figma,
+    name: "Figma",
+    plan: "Team",
+    category: "Design",
+    paymentMethod: "Amex 9999",
+    status: "active",
+    startDate: dayjs().subtract(1, "month").toISOString(),
+    price: 15,
+    currency: "USD",
+    billing: "Monthly",
+    renewalDate: dayjs().add(10, "day").toISOString(), // ❌ not upcoming
+    color: "#a259ff",
+  },
   {
     id: "adobe-creative-cloud",
     icon: icons.adobe,
