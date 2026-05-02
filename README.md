@@ -136,6 +136,7 @@ if (signUp.status === "complete" || isSignedIn) {
 return null;
 }
 
+<!--
 // ✅ VERIFY SCREEN
 if (
 signUp.status === "missing_requirements" &&
@@ -252,4 +253,4 @@ Track your subscriptions easily
 );
 };
 
-export default SignUp;
+export default SignUp; -->
